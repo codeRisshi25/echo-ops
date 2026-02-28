@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Echo-Ops | Infrastructure Observability Agent</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #21262d;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --text: #c9d1d9;
+      --muted: #6e7681;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, monospace; }
+
+    /* ── Layout ── */
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; color: #fff; }
+    header h1 span { color: var(--accent); }
+    .badge { font-size: 0.72rem; padding: 2px 10px; border-radius: 12px; font-weight: 500; }
+    .badge.healthy { background: #1a3a2a; color: var(--green); border: 1px solid var(--green); }
+    .badge.anomaly { background: #3a1a1a; color: var(--red); border: 1px solid var(--red); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+    main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 16px; padding: 16px; height: calc(100vh - 61px); }
+
+    /* ── Cards ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+    .card-header { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 8px; }
+    .card-body { flex: 1; overflow-y: auto; padding: 12px; }
+
+    /* ── Metrics Row ── */
+    .metrics { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .metric .label { font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; }
+    .metric .value { font-size: 1.6rem; font-weight: 700; color: #fff; }
+    .metric .sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Drift Gauge ── */
+    #drift-bar { width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    #drift-fill { height: 100%; width: 0%; background: var(--green); transition: width 0.5s ease, background 0.5s ease; border-radius: 4px; }
+
+    /* ── Log Feed ── */
+    #log-feed { font-family: 'Courier New', monospace; font-size: 0.75rem; line-height: 1.6; }
+    .log-line { padding: 2px 0; border-bottom: 1px solid #1a1f27; }
+    .log-line .ts { color: var(--muted); }
+    .log-line .svc { color: var(--accent); font-weight: 600; }
+    .log-line .lvl-INFO  { color: var(--green); }
+    .log-line .lvl-WARN  { color: var(--yellow); }
+    .log-line .lvl-ERROR { color: var(--red); }
+
+    /* ── Alerts ── */
+    .alert-card { background: #1a0f0f; border: 1px solid var(--red); border-radius: 6px; padding: 12px; margin-bottom: 10px; font-size: 0.8rem; }
+    .alert-card .alert-header { color: var(--red); font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .alert-card .cause { color: #fff; margin-bottom: 6px; }
+    .alert-card .evidence { color: var(--muted); }
+    .alert-card .action { margin-top: 8px; color: var(--yellow); font-style: italic; }
+    .alert-card .confidence { padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; }
+    .confidence.HIGH { background: #3a1a1a; color: var(--red); }
+    .confidence.MEDIUM { background: #3a2a0a; color: var(--yellow); }
+    .confidence.LOW { background: #1a2a2a; color: var(--accent); }
+
+    .empty { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Echo-<span>Ops</span></h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="status-badge" class="badge healthy">● HEALTHY</span>
+      <span style="font-size:0.75rem;color:var(--muted)">Endee Vector DB · OpenRouter LLM</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Metrics Row -->
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Drift Score</div>
+        <div class="value" id="m-drift">0.000</div>
+        <div id="drift-bar"><div id="drift-fill"></div></div>
+        <div class="sub">threshold: 0.30</div>
+      </div>
+      <div class="metric">
+        <div class="label">Anomalies Detected</div>
+        <div class="value" id="m-anomalies">0</div>
+        <div class="sub">since baseline built</div>
+      </div>
+      <div class="metric">
+        <div class="label">Baseline Vectors in Endee</div>
+        <div class="value" id="m-baseline">—</div>
+        <div class="sub">healthy log embeddings</div>
+      </div>
+      <div class="metric">
+        <div class="label">Embed Cache Hit Rate</div>
+        <div class="value" id="m-cache">—</div>
+        <div class="sub">LRU cache on templates</div>
+      </div>
+    </div>
+
+    <!-- Live Log Feed -->
+    <div class="card">
+      <div class="card-header">📡 Live Log Stream</div>
+      <div class="card-body" id="log-feed">
+        <div class="empty">Waiting for log stream...</div>
+      </div>
+    </div>
+
+    <!-- Alerts Panel -->
+    <div class="card">
+      <div class="card-header">🚨 Agent Alerts & Root Cause Reports</div>
+      <div class="card-body" id="alert-feed">
+        <div class="empty" id="alert-empty">No anomalies detected yet. System is healthy.</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const logFeed = document.getElementById('log-feed');
+    const alertFeed = document.getElementById('alert-feed');
+    const statusBadge = document.getElementById('status-badge');
+    let logCount = 0;
+
+    // ── SSE Connection ──────────────────────────────────────────────────────
+    const es = new EventSource('/api/stream');
+
+    es.addEventListener('log', e => {
+      const log = JSON.parse(e.data);
+      addLog(log);
+    });
+
+    es.addEventListener('status', e => {
+      const s = JSON.parse(e.data);
+      updateMetrics(s);
+    });
+
+    es.addEventListener('alert', e => {
+      const report = JSON.parse(e.data);
+      addAlert(report);
+    });
+
+    es.onerror = () => {
+      console.warn('SSE connection lost, retrying...');
+    };
+
+    // ── Log Rendering ────────────────────────────────────────────────────────
+    function addLog(log) {
+      if (logCount === 0) logFeed.innerHTML = '';
+      logCount++;
+
+      const ts = new Date(log.timestamp).toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML =
+        `<span class="ts">${ts}</span> ` +
+        `<span class="svc">[${log.service}]</span> ` +
+        `<span class="lvl-${log.level}">${log.level}</span> ` +
+        `<span>${escHtml(log.message)}</span>`;
+      logFeed.appendChild(div);
+
+      // Keep only last 200 lines
+      while (logFeed.children.length > 200) logFeed.removeChild(logFeed.firstChild);
+      logFeed.scrollTop = logFeed.scrollHeight;
+    }
+
+    // ── Metrics ──────────────────────────────────────────────────────────────
+    function updateMetrics(s) {
+      document.getElementById('m-drift').textContent = (s.drift_score || 0).toFixed(3);
+      document.getElementById('m-anomalies').textContent = s.anomaly_count ?? 0;
+      if (s.baseline_size) document.getElementById('m-baseline').textContent = s.baseline_size;
+      if (s.cache_hit_rate_pct !== undefined)
+        document.getElementById('m-cache').textContent = s.cache_hit_rate_pct + '%';
+
+      // Drift bar
+      const pct = Math.min((s.drift_score || 0) / 0.5 * 100, 100);
+      const fill = document.getElementById('drift-fill');
+      fill.style.width = pct + '%';
+      fill.style.background = s.is_anomaly ? '#f85149' : s.drift_score > 0.2 ? '#d29922' : '#3fb950';
+
+      // Status badge
+      if (s.is_anomaly) {
+        statusBadge.className = 'badge anomaly';
+        statusBadge.textContent = '● ANOMALY';
+      } else {
+        statusBadge.className = 'badge healthy';
+        statusBadge.textContent = '● HEALTHY';
+      }
+    }
+
+    // ── Alert Rendering ──────────────────────────────────────────────────────
+    function addAlert(r) {
+      document.getElementById('alert-empty')?.remove();
+      const div = document.createElement('div');
+      div.className = 'alert-card';
+      const evidenceHtml = (r.evidence || []).map(e => `<li>${escHtml(e)}</li>`).join('');
+      div.innerHTML = `
+        <div class="alert-header">
+          <span>🚨 ${escHtml(r.service?.toUpperCase())} — Drift ${(r.drift_score||0).toFixed(3)}</span>
+          <span class="confidence ${r.confidence}">${r.confidence}</span>
+        </div>
+        <div class="cause"><strong>Cause:</strong> ${escHtml(r.likely_cause || '')}</div>
+        <div class="evidence"><ul>${evidenceHtml}</ul></div>
+        <div class="action">→ ${escHtml(r.recommended_action || '')}</div>
+      `;
+      alertFeed.insertBefore(div, alertFeed.firstChild);
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+  </script>
+</body>
+</html>
