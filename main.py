@@ -49,29 +49,35 @@ def wait_for_endee(retries=15):
 
 # ── Phase 2: Build Baseline ───────────────────────────────────────────────────
 
-def build_baseline():
+def build_baseline() -> int:
     """
-    Ingest BASELINE_LOG_COUNT healthy logs into Endee.
-    These form the 'Healthy Cluster' in vector space.
-    Skipped if index already has vectors (idempotent).
+    Ingest WINDOW MEANS of healthy logs into Endee instead of single logs.
+    This calculates the semantic 'center of gravity' of healthy behaviour.
     """
-    console.print(f"\n[bold cyan]📦 Building healthy baseline ({config.BASELINE_LOG_COUNT} vectors)...[/]")
+    console.print(f"\n[bold cyan]📦 Building healthy baseline ({config.BASELINE_LOG_COUNT} windows)...[/]")
     endee.create_index(config.ENDEE_INDEX_BASELINE, config.ENDEE_INDEX_DIM, config.ENDEE_METRIC)
 
     batch = []
+    # We create BASELINE_LOG_COUNT distinct "healthy windows"
     for i in range(config.BASELINE_LOG_COUNT):
-        log = generate_healthy_log()
-        vec = get_embedding(log["template"])
+        window_logs = [generate_healthy_log() for _ in range(config.DRIFT_WINDOW_SIZE)]
+        embeddings = [get_embedding(log["template"]) for log in window_logs]
+        
+        # Calculate the mean vector for this healthy window
+        dim = config.ENDEE_INDEX_DIM
+        mean_vec = [
+            sum(embeddings[i][j] for i in range(len(embeddings))) / len(embeddings)
+            for j in range(dim)
+        ]
+
         batch.append({
-            "id": f"baseline-{uuid.uuid4().hex[:8]}",
-            "vector": vec,
+            "id": f"baseline-win-{uuid.uuid4().hex[:8]}",
+            "vector": mean_vec,
             "metadata": {
-                "service": log["service"],
-                "level": log["level"],
-                "template": log["template"],
-                "node_id": log["node_id"],
+                "type": "healthy_window_mean",
             },
         })
+        
         if len(batch) >= config.BATCH_SIZE:
             endee.upsert(config.ENDEE_INDEX_BASELINE, batch)
             batch.clear()
@@ -108,26 +114,11 @@ def ingestion_loop(detector: DriftDetector, demo_mode: bool, stop_event: threadi
 
         log = generate_anomaly_log() if anomaly_injected else generate_healthy_log()
 
-        # Feed raw log to drift detector (no Endee write for live logs — only baseline is indexed)
+        # Feed raw log to drift detector  (We no longer insert single live logs into Endee)
         detector.add_log(log)
 
         # Push to dashboard
         push_log_event(log)
-
-        # Batch-upsert live logs to Endee so they also become part of the index over time
-        vec = get_embedding(log["template"])
-        batch.append({
-            "id": f"live-{uuid.uuid4().hex[:8]}",
-            "vector": vec,
-            "metadata": {"service": log["service"], "level": log["level"]},
-        })
-
-        if len(batch) >= config.BATCH_SIZE:
-            try:
-                endee.upsert(config.ENDEE_INDEX_BASELINE, batch)
-            except Exception as e:
-                console.print(f"[yellow]Upsert warning: {e}[/]")
-            batch.clear()
 
         time.sleep(0.3)  # ~3-4 logs/sec
 

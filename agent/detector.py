@@ -95,17 +95,25 @@ class DriftDetector:
 
         avg_similarity = statistics.mean(r["score"] for r in results)
         drift_score = 1.0 - avg_similarity
+        
+        # DEBUG
+        print(f"[Detector] avg_similarity={avg_similarity:.4f} → drift_score={drift_score:.4f} (threshold={config.DRIFT_THRESHOLD})")
 
         self._last_drift_score = drift_score
         self._scores_history.append(drift_score)
 
         # 4. Fire if above threshold
         if drift_score > config.DRIFT_THRESHOLD:
-            self._anomaly_count += 1
-            # Identify the most-represented service in the buffer
-            service_counts: dict[str, int] = {}
-            for log in logs:
-                service_counts[log["service"]] = service_counts.get(log["service"], 0) + 1
-            dominant_service = max(service_counts, key=service_counts.get)
-
-            self.on_anomaly(dominant_service, drift_score, logs[-10:])
+            # 30-second cooldown so we don't spam the LLM
+            if time.time() - getattr(self, "_last_alert_time", 0) < 30:
+                pass
+            else:
+                self._anomaly_count += 1
+                self._last_alert_time = time.time()
+                # Identify the most-represented service in the buffer
+                service_counts: dict[str, int] = {}
+                for log in logs:
+                    service_counts[log["service"]] = service_counts.get(log["service"], 0) + 1
+                dominant_service = max(service_counts, key=service_counts.get)
+    
+                self.on_anomaly(dominant_service, drift_score, logs[-10:])

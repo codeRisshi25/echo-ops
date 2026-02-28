@@ -14,13 +14,15 @@ ENDEE_INDEX_BASELINE = "echo_ops_baseline"
 ENDEE_INDEX_DIM = 384          # all-MiniLM-L6-v2 output dimension
 ENDEE_METRIC = "cosine"
 
-# ── OpenRouter LLM ───────────────────────────────────────────────────────────
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-# Fast, free, function-calling capable model via OpenRouter
-# Change this to any OpenRouter model slug that supports function calling
-# e.g. "openai/gpt-4o-mini", "anthropic/claude-haiku", "meta-llama/llama-3.1-8b-instruct:free"
-LLM_MODEL = "google/gemini-2.0-flash-exp:free"
+# ── LLM Configuration (Groq Native API) ──────────────────────────────────────
+# Groq provides lightning-fast inference for Llama models.
+# Make sure GROQ_API_KEY is set in your environment or .env file.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY is not set. LLM functionality may be limited.")
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+LLM_MODEL = "llama-3.3-70b-versatile"
 
 # ── Embedding ─────────────────────────────────────────────────────────────────
 EMBED_MODEL = "all-MiniLM-L6-v2"   # local, free, 384-dim
@@ -34,7 +36,7 @@ BASELINE_LOG_COUNT = 300 # number of healthy logs to build the baseline
 # ── Drift Detection ──────────────────────────────────────────────────────────
 DRIFT_CHECK_INTERVAL_SEC = 5    # how often to check for drift
 DRIFT_WINDOW_SIZE = 30          # rolling window of recent logs to analyze
-DRIFT_THRESHOLD = 0.30          # cosine distance above this → anomaly
+DRIFT_THRESHOLD = 0.025          # cosine distance above this → anomaly
 TOP_K_NEIGHBORS = 5             # how many baseline neighbors to compare
 
 # ── Demo Mode ────────────────────────────────────────────────────────────────

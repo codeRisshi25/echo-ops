@@ -1,63 +1,72 @@
 """
 ingestion/endee_client.py
 
-Thin HTTP wrapper around Endee's REST API.
-Endee runs at localhost:8080 (or ENDEE_URL from .env).
+Wrapper around the official Endee Python SDK.
+Using the SDK (pip install endee) is simpler and more reliable than
+raw HTTP calls since Endee's API requires checksum and exact field names.
 
-Endee API endpoints used:
-  POST /api/v1/index/create          → create a new index
-  POST /api/v1/index/{name}/upsert   → insert / update vectors
-  POST /api/v1/index/{name}/query    → ANN search
-  GET  /api/v1/index/list            → list all indexes
+SDK docs: https://docs.endee.io
 """
 
-import requests
+from endee import Endee as _EndeeSDK, Precision
 import config
 
 
 class EndeeClient:
     def __init__(self, base_url: str = config.ENDEE_URL):
-        self.base_url = base_url.rstrip("/")
-        self.session = requests.Session()
-
-    def _url(self, path: str) -> str:
-        return f"{self.base_url}{path}"
+        self._client = _EndeeSDK()
+        self._client.set_base_url(f"{base_url}/api/v1")
+        self._indexes: dict = {}   # cache of index name → Index object
 
     # ── Index Management ──────────────────────────────────────────────────────
 
-    def create_index(self, name: str, dim: int, metric: str = "cosine") -> dict:
+    def create_index(self, name: str, dim: int, metric: str = "cosine") -> str:
         """
-        Create a vector index. Safe to call if index already exists —
-        Endee returns a 409 which we silently ignore.
+        Create a vector index. Safe to call if index already exists.
+        Uses INT16 precision — good balance of speed and accuracy.
         """
-        payload = {"name": name, "dimension": dim, "metric": metric}
-        resp = self.session.post(self._url("/api/v1/index/create"), json=payload)
-        if resp.status_code == 409:
-            return {"status": "already_exists"}
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            result = self._client.create_index(
+                name=name,
+                dimension=dim,
+                space_type=metric,
+                precision="float32",   # float32 works on all hardware
+            )
+            return result
+        except Exception as e:
+            err = str(e).lower()
+            if "already exists" in err or "duplicate" in err or "409" in err:
+                return "already_exists"
+            raise
+
+    def _get_index(self, name: str):
+        """Get or cache an Index object."""
+        if name not in self._indexes:
+            self._indexes[name] = self._client.get_index(name)
+        return self._indexes[name]
 
     def list_indexes(self) -> list:
-        resp = self.session.get(self._url("/api/v1/index/list"))
-        resp.raise_for_status()
-        return resp.json()
+        return self._client.list_indexes()
 
     # ── Data Operations ───────────────────────────────────────────────────────
 
-    def upsert(self, index_name: str, vectors: list[dict]) -> dict:
+    def upsert(self, index_name: str, vectors: list[dict]) -> str:
         """
         Upsert a batch of vectors.
-        Each item in `vectors` must have:
-          - id:     unique string ID
-          - vector: list of floats (len == dim)
-          - metadata: dict of filterable fields
+        Each item must have: id (str), vector (list[float]), metadata (dict).
+        We rename 'metadata' → 'meta' to match the SDK's expected field name.
         """
-        payload = {"vectors": vectors}
-        resp = self.session.post(
-            self._url(f"/api/v1/index/{index_name}/upsert"), json=payload
-        )
-        resp.raise_for_status()
-        return resp.json()
+        # SDK expects 'meta', our internal format uses 'metadata'
+        sdk_items = [
+            {
+                "id": v["id"],
+                "vector": v["vector"],
+                "meta": v.get("metadata", v.get("meta", {})),
+            }
+            for v in vectors
+        ]
+        index = self._get_index(index_name)
+        return index.upsert(sdk_items)
 
     def query(
         self,
@@ -67,26 +76,36 @@ class EndeeClient:
         filter: dict | None = None,
     ) -> dict:
         """
-        Nearest-neighbour search against an index.
-        Returns top_k results with id, score, and metadata.
-
-        filter example: {"service": {"$eq": "checkout"}}
+        Nearest-neighbour search. Returns dict with 'results' list.
+        Each result has: id, score, meta.
         """
-        payload = {"vector": vector, "top_k": top_k}
-        if filter:
-            payload["filter"] = filter
-        resp = self.session.post(
-            self._url(f"/api/v1/index/{index_name}/query"), json=payload
-        )
-        resp.raise_for_status()
-        return resp.json()
+        index = self._get_index(index_name)
+        raw = index.query(vector=vector, top_k=top_k, filter=filter)
+
+        # Normalise to our internal format: {results: [{id, score, metadata}]}
+        results = []
+        for r in (raw or []):
+            # SDK returns objects with .id, .similarity, .meta attributes
+            if hasattr(r, "id"):
+                results.append({
+                    "id": r.id,
+                    "score": getattr(r, "similarity", 0.0),
+                    "metadata": getattr(r, "meta", {}),
+                })
+            elif isinstance(r, dict):
+                results.append({
+                    "id": r.get("id", ""),
+                    "score": r.get("similarity", r.get("score", 0.0)),
+                    "metadata": r.get("meta", r.get("metadata", {})),
+                })
+        return {"results": results}
 
     # ── Health ────────────────────────────────────────────────────────────────
 
     def is_healthy(self) -> bool:
-        """Quick liveness check — returns True if Endee is up."""
+        """Returns True if Endee is reachable."""
         try:
-            resp = self.session.get(self._url("/api/v1/index/list"), timeout=3)
-            return resp.status_code == 200
-        except requests.RequestException:
+            self._client.list_indexes()
+            return True
+        except Exception:
             return False
