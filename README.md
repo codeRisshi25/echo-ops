@@ -175,7 +175,7 @@ open http://localhost:8000
 | Component | Technology | Cost |
 |---|---|---|
 | Vector DB | Endee (C++ HNSW) | Free, self-hosted |
-| Embedding | sentence-transformers all-MiniLM-L6-v2 | Free, local |
+| Embedding | fastembed + BAAI/bge-small-en-v1.5 (ONNX) | Free, local |
 | LLM / Agent | OpenRouter → `google/gemini-2.0-flash-exp:free` | Free |
 | API Server | FastAPI + uvicorn | Open source |
 | Dashboard | Vanilla HTML/CSS/JS | — |
