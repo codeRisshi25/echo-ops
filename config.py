@@ -17,7 +17,9 @@ ENDEE_METRIC = "cosine"
 # ── OpenRouter LLM ───────────────────────────────────────────────────────────
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-# Fast, free, function-calling capable
+# Fast, free, function-calling capable model via OpenRouter
+# Change this to any OpenRouter model slug that supports function calling
+# e.g. "openai/gpt-4o-mini", "anthropic/claude-haiku", "meta-llama/llama-3.1-8b-instruct:free"
 LLM_MODEL = "google/gemini-2.0-flash-exp:free"
 
 # ── Embedding ─────────────────────────────────────────────────────────────────

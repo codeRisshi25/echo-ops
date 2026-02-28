@@ -3,13 +3,13 @@ agent/agent.py
 
 The Agentic ReAct Loop — the brain of Echo-Ops.
 
-Uses OpenRouter (OpenAI-compatible API) with Gemini Flash for true
-function-calling based reasoning.
+Uses OpenRouter (OpenAI-compatible API) with any fast-inference LLM
+that supports function calling.
 
 ReAct Pattern:
   1. OBSERVE: receive anomaly context (service, drift score, sample logs)
-  2. THINK: Gemini reasons about what to investigate
-  3. ACT: Gemini calls tools (get_recent_commits, get_top_db_queries, etc.)
+  2. THINK: LLM reasons about what to investigate
+  3. ACT: LLM calls tools (get_recent_commits, get_top_db_queries, etc.)
   4. OBSERVE tool results
   5. THINK: synthesize findings
   6. Produce a structured Root Cause Analysis Report
@@ -84,7 +84,7 @@ class EchoOpsAgent:
 
     def _investigate(self, service: str, drift_score: float, sample_logs: list[dict]) -> dict | None:
         """
-        The ReAct loop. Sends context to Gemini, handles tool calls,
+        The ReAct loop. Sends context to the LLM, handles tool calls,
         returns final structured report.
         """
         # Build the initial user message with observation context

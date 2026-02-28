@@ -6,7 +6,7 @@ Wires together all components and runs them concurrently:
   2. Log generator     → simulates a live log stream
   3. Ingestion loop    → batches logs, embeds, upserts to Endee
   4. Drift detector    → rolling window cosine-distance check every 5s
-  5. Agent loop        → Gemini ReAct reasoning on anomalies
+  5. Agent loop        → Agentic LLM ReAct reasoning on anomalies
   6. FastAPI dashboard → streams everything to browser via SSE
 
 Run:

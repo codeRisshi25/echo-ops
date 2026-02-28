@@ -3,8 +3,6 @@
 > **Autonomous Infrastructure Observability Agent**  
 > Detects architectural entropy in system log streams using semantic vector drift analysis — before crashes happen.
 
-Built for the [Endee.io](https://github.com/endee-io/endee) internship evaluation.
-
 ---
 
 ## The Problem
@@ -26,7 +24,7 @@ Healthy Logs → Embed → Endee Baseline Index
 Live Logs    → Embed → Compare vs. Baseline
                        Cosine Distance > 0.30 → ANOMALY
                                                    ↓
-                                             Gemini ReAct Loop
+                                             Agentic LLM Loop
                                              calls diagnostic tools
                                                    ↓
                                              Root Cause Report
@@ -38,9 +36,9 @@ Live Logs    → Embed → Compare vs. Baseline
 
 ```
 ┌─────────────────────────────────────────────┐
-│              Echo-Ops Agent                  │
-│                                              │
-│  ingestion/          agent/        api/      │
+│              Echo-Ops Agent                 │
+│                                             │
+│  ingestion/          agent/        api/     │
 │  ┌───────────┐  ┌──────────────┐  ┌───────┐ │
 │  │ log_gen   │  │  detector.py │  │server │ │
 │  │ embedder  │→ │  (Endee ANN) │→ │  SSE  │ │
@@ -83,7 +81,7 @@ def _embed_template(template: str) -> tuple:
 The agent is not a prompt wrapper. It's a genuine **ReAct (Reason + Act)** loop:
 
 1. **Observe**: Receives `(service, drift_score, sample_logs)` from detector  
-2. **Reason**: Gemini Flash decides which tools to call  
+2. **Reason**: LLM decides which tools to call  
 3. **Act**: Calls `get_recent_commits`, `get_top_db_queries`, `get_resource_snapshot`  
 4. **Observe**: Tool results feed back into the conversation  
 5. **Synthesize**: Produces `Root Cause Analysis Report` as structured JSON  
@@ -107,7 +105,7 @@ echo-ops/
 ├── agent/
 │   ├── detector.py        # Drift detection engine
 │   ├── tools.py           # Diagnostic tools + OpenAI function schemas
-│   └── agent.py           # OpenRouter/Gemini ReAct loop
+│   └── agent.py           # Agentic LLM ReAct loop (OpenRouter)
 ├── api/
 │   └── server.py          # FastAPI + SSE stream
 └── static/
@@ -165,7 +163,7 @@ open http://localhost:8000
 2. **t=10s** — Dashboard goes live, healthy log stream visible, drift score near 0  
 3. **t=25s** — Anomaly injected (checkout retry storm)  
 4. **t=30s** — Drift score spikes above 0.30, agent wakes up  
-5. **t=35s** — Gemini calls tools (commits, DB queries, resources)  
+5. **t=35s** — LLM calls tools (commits, DB queries, resources)  
 6. **t=40s** — Root Cause Report appears in dashboard: "DB index change in checkout service"  
 
 ---
@@ -176,14 +174,12 @@ open http://localhost:8000
 |---|---|---|
 | Vector DB | Endee (C++ HNSW) | Free, self-hosted |
 | Embedding | fastembed + BAAI/bge-small-en-v1.5 (ONNX) | Free, local |
-| LLM / Agent | OpenRouter → `google/gemini-2.0-flash-exp:free` | Free |
+| LLM / Agent | Any OpenRouter-compatible model | Free tier available |
 | API Server | FastAPI + uvicorn | Open source |
 | Dashboard | Vanilla HTML/CSS/JS | — |
 
 ---
 
-## Internship Submission
+## Author
 
-- GitHub: [codeRisshi25/echo-ops](https://github.com/codeRisshi25/echo-ops)
-- Endee fork: forked from [endee-io/endee](https://github.com/endee-io/endee)
-- Author: Risshi Raj Sen
+Risshi Raj Sen — [github.com/codeRisshi25](https://github.com/codeRisshi25)
