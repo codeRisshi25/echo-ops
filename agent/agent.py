@@ -3,7 +3,7 @@ agent/agent.py
 
 The Agentic ReAct Loop — the brain of Echo-Ops.
 
-Uses OpenRouter (OpenAI-compatible API) with any fast-inference LLM
+Uses Groq (OpenAI-compatible API) with any fast-inference LLM
 that supports function calling.
 
 ReAct Pattern:
@@ -178,7 +178,7 @@ class EchoOpsAgent:
             }
 
     def _fallback_report(self, service: str, drift_score: float) -> dict:
-        """Return a mock report if the LLM API is unreachable (e.g. OpenRouter rate limits)."""
+        """Return a mock report if the LLM API is unreachable (e.g. Groq rate limits)."""
         print("[Agent] 🛡️ Returning resilient fallback report due to LLM API failure.")
         return {
             "service": service,

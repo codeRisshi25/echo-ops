@@ -6,7 +6,7 @@ These are simulated for the MVP — in production you'd wire these to real
 Prometheus, GitHub, or AWS APIs.
 
 Each tool returns a structured dict with realistic data. The Agent
-The agentic LLM (via OpenRouter) decides *which* tools to call and *when*.
+The agentic LLM (via Groq) decides *which* tools to call and *when*.
 """
 
 import random

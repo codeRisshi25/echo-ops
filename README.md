@@ -43,7 +43,7 @@ Live Logs    → Embed → Compare vs. Baseline
 │  │ log_gen   │  │  detector.py │  │server │ │
 │  │ embedder  │→ │  (Endee ANN) │→ │  SSE  │ │
 │  │  + cache  │  │  agent.py    │  │  /    │ │
-│  │ endee_    │  │  (OpenRouter)│  │static │ │
+│  │ endee_    │  │    (Groq)    │  │static │ │
 │  │  client   │  │  tools.py    │  │       │ │
 │  └───────────┘  └──────────────┘  └───────┘ │
 └─────────────────────────────────────────────┘
@@ -105,7 +105,7 @@ echo-ops/
 ├── agent/
 │   ├── detector.py        # Drift detection engine
 │   ├── tools.py           # Diagnostic tools + OpenAI function schemas
-│   └── agent.py           # Agentic LLM ReAct loop (OpenRouter)
+│   └── agent.py           # Agentic LLM ReAct loop (Groq)
 ├── api/
 │   └── server.py          # FastAPI + SSE stream
 └── static/
@@ -119,8 +119,8 @@ echo-ops/
 ### Prerequisites
 
 - Python 3.11+
-- Docker (for Endee)
-- OpenRouter API key (free at [openrouter.ai](https://openrouter.ai))
+- Docker (for Endee Vector DB)
+- Groq API key (free at [console.groq.com/keys](https://console.groq.com/keys))
 
 ### 1. Clone & Install
 
@@ -136,7 +136,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and set OPENROUTER_API_KEY
+# Edit .env and set GROQ_API_KEY
 ```
 
 ### 3. Start Endee
@@ -174,7 +174,7 @@ open http://localhost:8000
 |---|---|---|
 | Vector DB | Endee (C++ HNSW) | Free, self-hosted |
 | Embedding | fastembed + BAAI/bge-small-en-v1.5 (ONNX) | Free, local |
-| LLM / Agent | Any OpenRouter-compatible model | Free tier available |
+| LLM / Agent | Any Groq-compatible model | Free tier available |
 | API Server | FastAPI + uvicorn | Open source |
 | Dashboard | Vanilla HTML/CSS/JS | — |
 
